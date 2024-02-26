@@ -1,0 +1,124 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://docs.opencv.org/4.9.0/opencv.js" onload="OpenCvReady();" async></script>
+</head>
+<body>
+    <div class="videoContainer">
+        <video id="videoStream" width="640" height="480"  autoplay ></video>
+    </div>
+    <div class="canvasContainer">
+        <canvas id="canvasStream" width="640" height="480"></canvas>
+    </div>
+    <div class="text">
+        <span id="respondAnsStatus"></span>
+        <span id="respondAnsShape"></span>
+        <span id="respondAnsCoords"></span>
+    </div>
+    <script>
+
+        const video = document.getElementById('videoStream');
+        const canvas = document.getElementById('canvasStream');
+        const context = canvas.getContext('2d');
+        var redirect = 0;
+
+        function OpenCvReady() {
+            console.log('OpenCV.js is ready');
+            StartVideo();
+            const FPS = 30;
+            cv['onRuntimeInitialized']=()=>{
+                let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+                let dst = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+                let printing = new cv.Mat();
+                let cap = new cv.VideoCapture(video);
+
+                function ProcessVideo() {
+                    try {
+
+                        cap.read(src);
+                        src.copyTo(dst);
+                        cv.cvtColor(dst, printing, cv.COLOR_RGBA2RGB, 0);
+                        //cv.imshow('canvasStream', dst);
+
+                        const imageDataURL = canvas.toDataURL('image/jpeg');
+                        DetectionRequest(imageDataURL, dst);
+
+                        let begin = Date.now();
+                        let delay = 1000 / FPS - (Date.now() - begin);
+                        setTimeout(ProcessVideo, delay);
+                    } catch (err) {
+                        console.error('Error processing video: ', err);
+                    }
+                };
+                setTimeout(ProcessVideo, 0);
+            };
+        }
+
+        async function StartVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640 , height: 480} });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error('Error accessing the camera: ', err);
+            }
+        }
+
+        function DetectionRequest(imageDataURL, dst){
+            fetch('/detections', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: imageDataURL })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const dataArr = data.status.split(",");
+                let status = dataArr[0];
+                let redirect = dataArr[8];
+                if (status == 'noface'){
+                    document.getElementById("respondAnsStatus").textContent='Status: '+ status;
+                } else if (status == 'get closer'){
+                    document.getElementById("respondAnsStatus").textContent='Status: '+ status;
+                    document.getElementById("respondAnsShape").textContent='Shape: '+ dataArr[1] +'|'+dataArr[2] +'|'+dataArr[3];
+
+                } else {
+                    document.getElementById("respondAnsStatus").textContent='Status: '+ status;
+                    document.getElementById("respondAnsShape").textContent='Shape: ( '+ dataArr[1] +'|'+dataArr[2] +'|'+dataArr[3] +')';
+                    document.getElementById("respondAnsCoords").textContent='Coords: ('+ dataArr[4] +'|'+dataArr[5] +'|'+dataArr[6] +'|'+dataArr[7]+')';
+                }
+                Redirect(status);
+                let point1 = new cv.Point(parseInt(dataArr[4]) , parseInt(dataArr[5]));
+                let point2 = new cv.Point(parseInt(dataArr[4])  + parseInt(dataArr[6]), parseInt(dataArr[5]) + parseInt(dataArr[7]));
+                cv.rectangle(dst, point1, point2, [255, 0, 0, 255]);
+                cv.imshow('canvasStream', dst);
+            })
+            .catch(error => console.error('Error sending frame to server: ', error));
+
+        }
+
+        function Redirect(status){
+            if(status == 'real'){
+                    redirect = redirect + 1;
+                } else {
+                    if(redirect >= 1){
+                        redirect = redirect - 1;
+                    }
+                }
+
+                if (redirect >= 10){
+                    console.log('redirect');
+                    document.location = '/endingpage';
+                    sleep(2000);
+                } else {
+                    console.log(redirect);
+                }
+            return redirect;
+        }
+    </script>
+</body>
+</html>
