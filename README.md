@@ -4,3 +4,5 @@ Aplikace běží na domácím webovém serveru kde se o chod webové části sta
 
 Díky nedostatku dat nejsou modely dokonalé a dělají chyby při různorodosti vstupů. Dosazení aplikace na web je také spíše provizorní řešení díky deadlinu pro odevzdání. 
 
+***Update*** 
+Po analýze výsledku, jsem došel k názoru, že pro nasazení a odhalení spoofingu existují lepší aleternativy a proto pracuji na další verzi.
